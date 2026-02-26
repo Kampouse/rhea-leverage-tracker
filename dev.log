@@ -1,0 +1,51 @@
+
+> burrow-pnl-tracker@0.1.0 dev
+> next dev
+
+ ⚠ Invalid next.config.js options detected: 
+ ⚠     Expected object, received boolean at "experimental.serverActions"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/asil/.openclaw/pnpm-lock.yaml as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /Users/asil/.openclaw/workspace/burrow-pnl-v2/package-lock.json
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.128:3000
+   - Experiments (use with caution):
+     ✓ serverActions
+
+ ✓ Starting...
+
+   We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+   The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+   	- target was set to ES2017 (For top-level `await`. Note: Next.js only polyfills for the esmodules target.)
+
+ ✓ Ready in 3.4s
+ ○ Compiling / ...
+ ✓ Compiled / in 2.2s (764 modules)
+ ✓ Compiled in 64ms (234 modules)
+ GET / 200 in 4976ms
+ ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.128:3000
+
+ ✓ Starting...
+ ✓ Ready in 1221ms
+ ○ Compiling / ...
+ ✓ Compiled / in 941ms (755 modules)
+ ✓ Compiled in 56ms (234 modules)
+ GET / 200 in 5810ms
+ GET / 200 in 182ms
+ ✓ Compiled in 357ms (755 modules)
+ GET / 200 in 4593ms
+ ✓ Compiled in 208ms (755 modules)
+ GET / 200 in 1466ms
+ ✓ Compiled in 157ms (755 modules)
+ GET / 200 in 1561ms
+[?25h
