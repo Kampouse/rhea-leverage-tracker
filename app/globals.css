@@ -155,11 +155,13 @@ html, body {
   border: 1px solid rgba(242, 238, 232, 0.1);
   background: linear-gradient(135deg, rgba(32, 32, 38, 0.9) 0%, rgba(26, 26, 34, 0.95) 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 800px;
 }
 
 .table th {
@@ -172,11 +174,17 @@ html, body {
   letter-spacing: 0.05em;
   background: rgba(29, 58, 104, 0.3);
   border-bottom: 1px solid rgba(242, 238, 232, 0.1);
+  white-space: nowrap;
 }
 
 .table td {
   padding: 16px;
   font-size: 0.875rem;
+  border-bottom: 1px solid rgba(242, 238, 232, 0.05);
+  vertical-align: middle;
+  background: transparent;
+  white-space: nowrap;
+}
   border-bottom: 1px solid rgba(242, 238, 232, 0.05);
   vertical-align: middle;
   background: transparent;
@@ -377,6 +385,10 @@ button:hover {
     border-radius: 0;
     border-left: none;
     border-right: none;
+  }
+
+  .table {
+    min-width: 600px;
   }
 
   .table td, .table th {
