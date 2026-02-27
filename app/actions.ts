@@ -348,7 +348,7 @@ function calculatePnL(
         positionToken: getToken(positionToken).symbol,
         positionAmount,
         positionValue,
-        entryPrice: positionEntry?.entryPrice,
+        entryPrice: entryPrice,
         currentPrice: positionPrice,
         pnl,
         pnlPercent,
