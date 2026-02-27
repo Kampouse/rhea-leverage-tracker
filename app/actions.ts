@@ -4,6 +4,7 @@ import { connect, keyStores } from 'near-api-js';
 
 const FASTNEAR_RPC = 'https://rpc.fastnear.com';
 const BURROW = 'contract.main.burrow.near';
+const RHEA_API = 'https://api.rhea.finance/v3';
 
 // Token metadata
 const TOKENS: Record<string, { decimals: number; symbol: string }> = {
@@ -25,6 +26,7 @@ let priceCache: Record<string, number> = {
 
 // Account cache
 let accountsCache: any[] = [];
+let historyCache: Record<string, any[]> = {};
 let lastFetch = 0;
 const CACHE_TTL = 60 * 1000; // 1 minute (reduced from 5)
 
@@ -45,6 +47,50 @@ async function fetchPrices() {
     console.error('Failed to fetch prices:', e);
   }
   return priceCache;
+}
+
+// Fetch trading history for a specific address
+async function fetchTradingHistory(address: string): Promise<any[]> {
+  try {
+    const res = await fetch(
+      `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=100&order_column=close_timestamp&order_by=DESC&tokens=`,
+      { cache: 'no-store' }
+    );
+    const data = await res.json();
+    
+    if (data.code === 0 && data.data?.position_records) {
+      return data.data.position_records;
+    }
+    return [];
+  } catch (e) {
+    console.error(`Failed to fetch history for ${address}:`, e);
+    return [];
+  }
+}
+
+// Get all unique addresses and their trading history
+async function fetchAllTradingHistory(addresses: string[]): Promise<Record<string, any[]>> {
+  const history: Record<string, any[]> = {};
+  
+  // Fetch in parallel with rate limiting
+  const chunks = [];
+  for (let i = 0; i < addresses.length; i += 5) {
+    chunks.push(addresses.slice(i, i + 5));
+  }
+  
+  for (const chunk of chunks) {
+    await Promise.all(
+      chunk.map(async (address) => {
+        history[address] = await fetchTradingHistory(address);
+      })
+    );
+    // Small delay to avoid rate limits
+    if (chunks.indexOf(chunk) < chunks.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  return history;
 }
 
 export async function forceRefresh() {
@@ -124,6 +170,21 @@ export interface Position {
   pnlPercent: number;
   leverage: number;
   health: number;
+}
+
+export interface UserStats {
+  accountId: string;
+  realizedPnL: number;
+  unrealizedPnL: number;
+  totalPnL: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  avgLeverage: number;
+  totalVolume: number;
+  activePositions: Position[];
+  closedPositions: any[];
 }
 
 function calculatePnL(accounts: any[], prices: Record<string, number>): Position[] {
@@ -216,6 +277,60 @@ function calculatePnL(accounts: any[], prices: Record<string, number>): Position
   }
   
   return positions;
+}
+
+export async function getUserStats(address: string): Promise<UserStats> {
+  const accounts = await fetchMarginAccounts();
+  const prices = await fetchPrices();
+  const allPositions = calculatePnL(accounts, prices);
+  
+  // Get active positions for this user
+  const activePositions = allPositions.filter(p => p.accountId === address);
+  const unrealizedPnL = activePositions.reduce((sum, p) => sum + p.pnl, 0);
+  
+  // Fetch trading history
+  const closedPositions = await fetchTradingHistory(address);
+  
+  // Calculate realized PnL from closed positions
+  let realizedPnL = 0;
+  let totalVolume = 0;
+  
+  for (const pos of closedPositions) {
+    const pnl = parseFloat(pos.pnl || '0');
+    realizedPnL += pnl;
+    
+    // Calculate volume (collateral amount)
+    const collateral = parseFloat(pos.amount_c || '0') / 1e18;
+    totalVolume += collateral;
+  }
+  
+  // Add active position collateral to volume
+  totalVolume += activePositions.reduce((sum, p) => sum + p.collateralValue, 0);
+  
+  const totalTrades = closedPositions.length + activePositions.length;
+  const winningTrades = closedPositions.filter(p => parseFloat(p.pnl || '0') > 0).length + 
+                         activePositions.filter(p => p.pnl > 0).length;
+  const losingTrades = totalTrades - winningTrades;
+  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+  
+  const avgLeverage = activePositions.length > 0
+    ? activePositions.reduce((sum, p) => sum + p.leverage, 0) / activePositions.length
+    : 0;
+  
+  return {
+    accountId: address,
+    realizedPnL,
+    unrealizedPnL,
+    totalPnL: realizedPnL + unrealizedPnL,
+    totalTrades,
+    winningTrades,
+    losingTrades,
+    winRate,
+    avgLeverage,
+    totalVolume,
+    activePositions,
+    closedPositions,
+  };
 }
 
 export async function getLeaderboard() {
