@@ -446,3 +446,4 @@ export async function getPositions(limit: number = 100, sortBy: string = 'pnl', 
     positions: positions.slice(0, limit),
   };
 }
+// Force rebuild Fri Feb 27 18:34:27 EST 2026
