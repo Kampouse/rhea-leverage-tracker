@@ -143,7 +143,7 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
               <th className="text-left">Type</th>
               <th className="text-left">Collateral</th>
               <th className="text-left">Token</th>
-              <th className="text-right">Entry</th>
+              <th className="text-left">Entry</th>
               <th className="text-right">Current</th>
               <th className="text-right">PnL ($)</th>
               <th className="text-right">Leverage</th>
@@ -192,7 +192,7 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
                 <td>
                   <span className="text-cream/70">{pos.positionToken}</span>
                 </td>
-                <td className="text-right">
+                <td className="text-left">
                   <span className="text-xs text-taupe">
                     {pos.entryPrice ? `$${pos.entryPrice.toFixed(2)}` : '-'}
                   </span>
