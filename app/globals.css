@@ -185,10 +185,6 @@ html, body {
   background: transparent;
   white-space: nowrap;
 }
-  border-bottom: 1px solid rgba(242, 238, 232, 0.05);
-  vertical-align: middle;
-  background: transparent;
-}
 
 .table tr:last-child td {
   border-bottom: none;
