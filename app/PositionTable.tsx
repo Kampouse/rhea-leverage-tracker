@@ -14,6 +14,7 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -63,42 +64,57 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
       <div className="flex items-center justify-between mb-4">
         <h2 className="section-title">All Positions</h2>
         
-        <div className="flex items-center gap-3">
-          {/* Search */}
-          <div className="relative">
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Search Toggle Button */}
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className={`p-1.5 rounded-md transition-colors ${
+              showSearch || searchTerm
+                ? 'bg-lime/20 text-lime' 
+                : 'bg-cream/5 text-taupe hover:bg-cream/10'
+            }`}
+            title="Search"
+          >
             <svg 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-taupe/50" 
+              className="w-4 h-4" 
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400/50 w-48"
-            />
-          </div>
+          </button>
+
+          {/* Search Input (collapsible) */}
+          {showSearch && (
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                autoFocus
+                className="pl-3 pr-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400/50 w-32 md:w-48"
+              />
+            </div>
+          )}
           
           {/* Results count */}
           {searchTerm && (
-            <span className="text-xs text-taupe min-w-[60px]">
+            <span className="text-xs text-taupe min-w-[50px] md:min-w-[60px]">
               {filteredPositions.length}/{positions.length}
             </span>
           )}
           
           {/* Timestamp */}
-          <span className="text-xs text-taupe min-w-[90px]">
+          <span className="text-xs text-taupe hidden md:inline min-w-[90px]">
             {formatTime(lastUpdate)}
           </span>
           
           {/* Auto toggle */}
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
               autoRefresh 
                 ? 'bg-forest/30 text-accent-green' 
                 : 'bg-cream/5 text-taupe'
@@ -111,9 +127,9 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="px-3 py-1 rounded-md bg-lime/15 text-lime text-xs font-medium hover:bg-lime/25 transition-colors disabled:opacity-50"
+            className="px-2 md:px-3 py-1 rounded-md bg-lime/15 text-lime text-xs font-medium hover:bg-lime/25 transition-colors disabled:opacity-50"
           >
-            {isRefreshing ? '...' : 'Refresh'}
+            {isRefreshing ? '...' : '↻'}
           </button>
         </div>
       </div>
