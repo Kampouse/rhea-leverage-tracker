@@ -282,7 +282,10 @@ function calculatePnL(
       const positionPrice = prices[positionToken] || 1;
       
       const collateralValue = collateralAmount * collateralPrice;
-// Clean P&L calculation - no entry price in calculation
+      const borrowedValue = borrowedAmount * borrowedPrice;
+      const positionValue = positionAmount * positionPrice;
+      
+      // Determine position type:
       const isShort = positionToken === collateralToken;
       const type = isShort ? 'Short' : 'Long';
 
