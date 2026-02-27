@@ -350,6 +350,22 @@ function calculatePnL(
       const leverage = collateralValue > 0 ? (collateralValue + borrowedValue) / collateralValue : 0;
       const health = borrowedValue > 0 ? collateralValue / borrowedValue : 999;
       
+      // Calculate entry price from P&L (reverse-engineer from actual P&L)
+      // This is the most accurate method
+      let entryPrice: number | undefined;
+      
+      if (positionAmount > 0 && pnl !== 0) {
+        if (isShort) {
+          // SHORT: P&L = (Entry Price - Current Price) × Amount
+          // Entry Price = Current Price + (P&L / Amount)
+          entryPrice = positionPrice + (pnl / positionAmount);
+        } else {
+          // LONG: P&L = (Current Price - Entry Price) × Amount
+          // Entry Price = Current Price - (P&L / Amount)
+          entryPrice = positionPrice - (pnl / positionAmount);
+        }
+      }
+      
       positions.push({
         accountId: acc.account_id,
         posId,
@@ -363,7 +379,7 @@ function calculatePnL(
         positionToken: getToken(positionToken).symbol,
         positionAmount,
         positionValue,
-        entryPrice: entryPrice,
+        entryPrice,
         currentPrice: positionPrice,
         pnl,
         pnlPercent,
