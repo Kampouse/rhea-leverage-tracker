@@ -211,6 +211,8 @@ export interface Position {
   positionToken: string;
   positionAmount: number;
   positionValue: number;
+  entryPrice?: number;
+  currentPrice: number;
   pnl: number;
   pnlPercent: number;
   leverage: number;
@@ -341,6 +343,8 @@ function calculatePnL(
         positionToken: getToken(positionToken).symbol,
         positionAmount,
         positionValue,
+        entryPrice: positionEntry?.entryPrice,
+        currentPrice: positionPrice,
         pnl,
         pnlPercent,
         leverage,

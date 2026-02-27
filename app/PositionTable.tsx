@@ -143,6 +143,8 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
               <th>Type</th>
               <th>Collateral</th>
               <th>Token</th>
+              <th className="text-right">Entry</th>
+              <th className="text-right">Current</th>
               <th className="text-right">PnL ($)</th>
               <th className="text-right">Leverage</th>
             </tr>
