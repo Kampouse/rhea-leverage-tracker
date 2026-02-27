@@ -462,7 +462,13 @@ export async function getPositions(limit: number = 100, sortBy: string = 'pnl', 
   
   positions.sort((a, b) => {
     const multiplier = order === 'desc' ? -1 : 1;
-    return (a[sortBy as keyof Position] > b[sortBy as keyof Position] ? 1 : -1) * multiplier;
+    const aVal = a[sortBy as keyof Position];
+    const bVal = b[sortBy as keyof Position];
+    
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return (aVal > bVal ? 1 : -1) * multiplier;
+    }
+    return 0;
   });
   
   return {
