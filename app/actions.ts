@@ -261,11 +261,6 @@ function calculatePnL(
         continue;
       }
       
-      // Margin contract stores amounts in different decimal formats:
-      // - Collateral: 18 decimals (for stablecoins like USDT)
-      // - Borrowed: token's native decimals (24 for wNEAR, 6 for USDT)
-      // - Position: token's native decimals (18 for USDT, 24 for wNEAR)
-      
       const getTokenDecimals = (tokenId: string) => {
         const decimals: Record<string, number> = {
           'wrap.near': 24,
@@ -300,30 +295,40 @@ function calculatePnL(
       // Otherwise fall back to current method (less accurate for positions with deposits)
       let pnl: number;
       let pnlPercent: number;
+      let entryPrice: number | undefined;
       
       const positionEntry = entryData[posId];
       
       if (positionEntry?.entryPrice) {
-        // Use entry price for accurate P&L (accounts for deposits correctly)
-        const entryPrice = positionEntry.entryPrice;
+        // Use entry price from Rhea API (for closed positions in history)
+        entryPrice = positionEntry.entryPrice;
         const currentPrice = positionPrice;
         
         if (isShort) {
           // SHORT: Profit when price goes DOWN
-          // PnL = (Entry Price - Current Price) * Position Amount
           const priceDiff = entryPrice - currentPrice;
           pnl = priceDiff * positionAmount;
         } else {
           // LONG: Profit when price goes UP
-          // PnL = (Current Price - Entry Price) * Position Amount
           const priceDiff = currentPrice - entryPrice;
           pnl = priceDiff * positionAmount;
         }
         
         pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
       } else {
+        // Calculate entry price from blockchain data for active positions
+        // Entry price = Total value at open / Position amount
+        // For LONG: (initial_collateral + borrowed) / position_amount
+        // For SHORT: (initial_collateral + borrowed) / position_amount
+        
+        if (positionAmount > 0) {
+          // We can estimate entry price from current blockchain state
+          // This assumes the position hasn't had additional deposits
+          const totalValueAtEntry = (collateralValue + borrowedValue);
+          entryPrice = totalValueAtEntry / positionAmount;
+        }
+        
         // Fallback: Use current method (may show fake profit from deposits)
-        // PnL = Position Value - Borrowed Value
         pnl = positionValue - borrowedValue;
         pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
       }
