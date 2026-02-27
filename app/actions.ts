@@ -312,6 +312,19 @@ function calculatePnL(
           entryPrice = positionPrice - (pnl / positionAmount);
         }
       }
+      
+      positions.push({
+        accountId: acc.account_id,
+        posId,
+        type,
+        collateralToken: getToken(collateralToken).symbol,
+        collateralAmount,
+        collateralValue,
+        borrowedToken: getToken(borrowedToken).symbol,
+        borrowedAmount,
+        borrowedValue,
+        positionToken: getToken(positionToken).symbol,
+        positionAmount,
         positionValue,
         entryPrice,
         currentPrice: positionPrice,
