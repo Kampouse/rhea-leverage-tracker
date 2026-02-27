@@ -54,10 +54,9 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
   try {
     const allRecords: any[] = [];
     let pageNum = 0;
-    const pageSize = 100; // API ignores this, returns max 10 per page
+    const pageSize = 100;
     let hasMore = true;
     
-    // Fetch all pages until we get less than 10 records
     while (hasMore) {
       const res = await fetch(
         `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=${pageNum}&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`,
@@ -68,9 +67,6 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
       if (data.code === 0 && data.data?.position_records) {
         const records = data.data.position_records;
         allRecords.push(...records);
-        
-        // API returns max 10 records per page
-        // If we got less than 10, we've reached the end
         hasMore = records.length === 10 && allRecords.length < data.data.total;
         pageNum++;
       } else {
@@ -82,6 +78,38 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
   } catch (e) {
     console.error(`Failed to fetch history for ${address}:`, e);
     return [];
+  }
+}
+
+// Fetch open position history to get entry prices
+async function fetchOpenPositionHistory(address: string): Promise<Record<string, any>> {
+  try {
+    const res = await fetch(
+      `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=100&order_column=open_timestamp&order_by=DESC&tokens=`,
+      { cache: 'no-store' }
+    );
+    const data = await res.json();
+    
+    if (data.code === 0 && data.data?.position_records) {
+      // Create map of pos_id -> entry data
+      const entryMap: Record<string, any> = {};
+      for (const record of data.data.position_records) {
+        // Extract position ID pattern: accountId_timestamp_posId
+        const posId = record.pos_id;
+        if (posId && record.entry_price) {
+          entryMap[posId] = {
+            entryPrice: parseFloat(record.entry_price),
+            openTimestamp: record.open_timestamp,
+            initialCollateral: parseFloat(record.amount_c || '0') / 1e18,
+          };
+        }
+      }
+      return entryMap;
+    }
+    return {};
+  } catch (e) {
+    console.error(`Failed to fetch open history for ${address}:`, e);
+    return {};
   }
 }
 
@@ -204,7 +232,11 @@ export interface UserStats {
   closedPositions: any[];
 }
 
-function calculatePnL(accounts: any[], prices: Record<string, number>): Position[] {
+function calculatePnL(
+  accounts: any[], 
+  prices: Record<string, number>,
+  entryData: Record<string, any> = {}
+): Position[] {
   const positions: Position[] = [];
   
   for (const acc of accounts) {
@@ -262,13 +294,37 @@ function calculatePnL(accounts: any[], prices: Record<string, number>): Position
       const isShort = positionToken === collateralToken;
       const type = isShort ? 'Short' : 'Long';
 
-      // Calculate PnL (same formula for both, but what changes differs):
-      // PnL = Position Value - Borrowed Value
-      // For LONG: Position value changes with price, borrowed is fixed debt
-      // For SHORT: Position is fixed (sold amount), borrowed value changes with price
-      const pnl = positionValue - borrowedValue;
+      // Calculate PnL using entry price if available (more accurate)
+      // Otherwise fall back to current method (less accurate for positions with deposits)
+      let pnl: number;
+      let pnlPercent: number;
       
-      const pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      const positionEntry = entryData[posId];
+      
+      if (positionEntry?.entryPrice) {
+        // Use entry price for accurate P&L (accounts for deposits correctly)
+        const entryPrice = positionEntry.entryPrice;
+        const currentPrice = positionPrice;
+        
+        if (isShort) {
+          // SHORT: Profit when price goes DOWN
+          // PnL = (Entry Price - Current Price) * Position Amount
+          const priceDiff = entryPrice - currentPrice;
+          pnl = priceDiff * positionAmount;
+        } else {
+          // LONG: Profit when price goes UP
+          // PnL = (Current Price - Entry Price) * Position Amount
+          const priceDiff = currentPrice - entryPrice;
+          pnl = priceDiff * positionAmount;
+        }
+        
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      } else {
+        // Fallback: Use current method (may show fake profit from deposits)
+        // PnL = Position Value - Borrowed Value
+        pnl = positionValue - borrowedValue;
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      }
       const leverage = collateralValue > 0 ? (collateralValue + borrowedValue) / collateralValue : 0;
       const health = borrowedValue > 0 ? collateralValue / borrowedValue : 999;
       
@@ -299,7 +355,11 @@ function calculatePnL(accounts: any[], prices: Record<string, number>): Position
 export async function getUserStats(address: string): Promise<UserStats> {
   const accounts = await fetchMarginAccounts();
   const prices = await fetchPrices();
-  const allPositions = calculatePnL(accounts, prices);
+  
+  // Fetch entry price data for accurate P&L calculation
+  const entryData = await fetchOpenPositionHistory(address);
+  
+  const allPositions = calculatePnL(accounts, prices, entryData);
   
   // Get active positions for this user
   const activePositions = allPositions.filter(p => p.accountId === address);
@@ -308,7 +368,7 @@ export async function getUserStats(address: string): Promise<UserStats> {
   // Fetch trading history
   const closedPositions = await fetchTradingHistory(address);
   
-  // Calculate realized PnL from closed positions
+  // Calculate realized PnL from closed positions (use Rhea's calculated value)
   let realizedPnL = 0;
   let totalVolume = 0;
   
@@ -353,7 +413,19 @@ export async function getUserStats(address: string): Promise<UserStats> {
 export async function getLeaderboard() {
   const accounts = await fetchMarginAccounts();
   const prices = await fetchPrices();
-  const positions = calculatePnL(accounts, prices);
+  
+  // Fetch entry data for all unique accounts
+  const uniqueAccounts = [...new Set(accounts.map(a => a.account_id))];
+  const allEntryData: Record<string, any> = {};
+  
+  // Fetch entry prices for top accounts (limit to avoid rate limits)
+  const topAccounts = uniqueAccounts.slice(0, 20);
+  for (const addr of topAccounts) {
+    const entryData = await fetchOpenPositionHistory(addr);
+    Object.assign(allEntryData, entryData);
+  }
+  
+  const positions = calculatePnL(accounts, prices, allEntryData);
   
   positions.sort((a, b) => b.pnl - a.pnl);
   
@@ -382,7 +454,7 @@ export async function getLeaderboard() {
 export async function getPositions(limit: number = 100, sortBy: string = 'pnl', order: 'asc' | 'desc' = 'desc') {
   const accounts = await fetchMarginAccounts();
   const prices = await fetchPrices();
-  const positions = calculatePnL(accounts, prices);
+  const positions = calculatePnL(accounts, prices, {});
   
   positions.sort((a, b) => {
     const multiplier = order === 'desc' ? -1 : 1;
