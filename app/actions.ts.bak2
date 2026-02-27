@@ -282,18 +282,71 @@ function calculatePnL(
       const positionPrice = prices[positionToken] || 1;
       
       const collateralValue = collateralAmount * collateralPrice;
-// Clean P&L calculation - no entry price in calculation
+// Fix for entry price calculation
+// Replace the P&L calculation section in calculatePnL function
+
+      // Determine position type
       const isShort = positionToken === collateralToken;
       const type = isShort ? 'Short' : 'Long';
 
-      // Simple P&L calculation
+      // Initialize variables
       let pnl: number;
       let pnlPercent: number;
+      let entryPrice: number | undefined;
       
-      // PnL = Position Value - Borrowed Value
-      pnl = positionValue - borrowedValue;
-      pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      const positionEntry = entryData[posId];
       
+      // CASE 1: Entry price from Rhea API (closed positions)
+      if (positionEntry?.entryPrice) {
+        entryPrice = positionEntry.entryPrice;
+        
+        if (isShort) {
+          const priceDiff = entryPrice - positionPrice;
+          pnl = priceDiff * positionAmount;
+        } else {
+          const priceDiff = positionPrice - entryPrice;
+          pnl = priceDiff * positionAmount;
+        }
+        
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      } 
+      // CASE 2: Calculate entry price from blockchain (active positions)
+      else if (positionAmount > 0) {
+        const totalValueAtEntry = collateralValue + borrowedValue;
+        entryPrice = totalValueAtEntry / positionAmount;
+        
+        if (isShort) {
+          const priceDiff = entryPrice - positionPrice;
+          pnl = priceDiff * positionAmount;
+        } else {
+          const priceDiff = positionPrice - entryPrice;
+          pnl = priceDiff * positionAmount;
+        }
+        
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      } 
+      // CASE 3: Fallback (no position amount)
+      else {
+        pnl = positionValue - borrowedValue;
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      }
+      } else {
+        // Calculate entry price from blockchain data for active positions
+        // Entry price = Total value at open / Position amount
+        // For LONG: (initial_collateral + borrowed) / position_amount
+        // For SHORT: (initial_collateral + borrowed) / position_amount
+        
+        if (positionAmount > 0) {
+          // We can estimate entry price from current blockchain state
+          // This assumes the position hasn't had additional deposits
+          const totalValueAtEntry = (collateralValue + borrowedValue);
+          entryPrice = totalValueAtEntry / positionAmount;
+        }
+        
+        // Fallback: Use current method (may show fake profit from deposits)
+        pnl = positionValue - borrowedValue;
+        pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+      }
       const leverage = collateralValue > 0 ? (collateralValue + borrowedValue) / collateralValue : 0;
       const health = borrowedValue > 0 ? collateralValue / borrowedValue : 999;
       
@@ -312,6 +365,19 @@ function calculatePnL(
           entryPrice = positionPrice - (pnl / positionAmount);
         }
       }
+      
+      positions.push({
+        accountId: acc.account_id,
+        posId,
+        type,
+        collateralToken: getToken(collateralToken).symbol,
+        collateralAmount,
+        collateralValue,
+        borrowedToken: getToken(borrowedToken).symbol,
+        borrowedAmount,
+        borrowedValue,
+        positionToken: getToken(positionToken).symbol,
+        positionAmount,
         positionValue,
         entryPrice,
         currentPrice: positionPrice,
