@@ -1,6 +1,7 @@
 import { getLeaderboard, getPositions } from './actions';
 import PositionTable from './PositionTable';
 import LeaderboardCard from './LeaderboardCard';
+import UserStatsPanelClient from './UserStatsPanelClient';
 
 export default async function Home() {
   const [leaderboard, positionsData] = await Promise.all([
@@ -14,6 +15,13 @@ export default async function Home() {
     if (Math.abs(value) >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
     return `$${value.toFixed(2)}`;
   };
+
+  // Combine all positions
+  const allPositions = [
+    ...leaderboard.topPerformers,
+    ...leaderboard.worstPerformers,
+    ...positionsData.positions
+  ];
 
   return (
     <div className="min-h-screen">
@@ -92,6 +100,9 @@ export default async function Home() {
 
         {/* Full Table */}
         <PositionTable initialPositions={positionsData.positions} initialTimestamp={Date.now()} />
+
+        {/* User Stats Panel */}
+        <UserStatsPanelClient positions={allPositions} />
 
         {/* Footer */}
         <div className="refresh-info justify-center py-8">

@@ -38,7 +38,11 @@ export default function LeaderboardCard({ title, icon, badge, badgeClass, positi
       </div>
       <div className="space-y-3">
         {positions.slice(0, 5).map((pos, i) => (
-          <div key={pos.posId} className="flex items-center justify-between p-3 rounded-lg bg-cream/[0.02] hover:bg-cream/[0.04] transition-colors">
+          <div 
+            key={pos.posId} 
+            data-account-id={pos.accountId}
+            className="flex items-center justify-between p-3 rounded-lg bg-cream/[0.02] hover:bg-cream/[0.04] transition-colors cursor-pointer"
+          >
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 flex items-center justify-center rounded-full font-semibold text-sm ${badge.includes('Best') ? 'rank-top' : 'rank-worst'}`}>
                 {i + 1}
@@ -46,9 +50,8 @@ export default function LeaderboardCard({ title, icon, badge, badgeClass, positi
               <div>
                 <div className="flex items-center gap-2">
                   <p 
-                    className="font-medium text-sm text-cream cursor-pointer hover:text-lime transition-colors" 
-                    title={`${pos.accountId} (click to copy)`}
-                    onClick={() => copyToClipboard(pos.accountId)}
+                    className="font-medium text-sm text-cream hover:text-lime transition-colors" 
+                    title={`${pos.accountId} (click for details)`}
                   >
                     {truncateAddress(pos.accountId)}
                   </p>
