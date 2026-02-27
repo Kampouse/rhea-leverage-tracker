@@ -301,82 +301,129 @@ button:hover {
 
 /* Responsive */
 @media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
   .container {
     padding: 0 12px;
+    max-width: 100%;
+  }
+
+  .min-h-screen {
+    padding-bottom: 20px;
   }
 
   .header {
-    padding: 20px 0;
+    padding: 16px 0;
+    margin-bottom: 16px;
+  }
+
+  .header .flex {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
 
   .header h1 {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
+    line-height: 1.2;
   }
 
   .header-subtitle {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+  }
+
+  .header .gap-4 {
+    gap: 8px;
+  }
+
+  .header img {
+    height: 32px;
+    width: 32px;
   }
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
   .stat-card {
-    padding: 12px;
+    padding: 10px;
   }
 
   .stat-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
+    margin-bottom: 4px;
   }
 
   .stat-value {
-    font-size: 1.125rem;
-  }
-
-  .card {
-    padding: 16px;
-  }
-
-  .section-title {
     font-size: 1rem;
   }
 
+  .card {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: 0.875rem;
+  }
+
+  .table-container {
+    margin: 0 -12px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
   .table td, .table th {
-    padding: 10px 8px;
-    font-size: 0.75rem;
+    padding: 8px 6px;
+    font-size: 0.7rem;
   }
 
   .table th {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
+    padding: 8px 6px;
   }
 
   .account-id {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .token-badge {
-    font-size: 0.7rem;
-    padding: 3px 6px;
+    font-size: 0.65rem;
+    padding: 2px 6px;
   }
 
   .leverage, .pnl, .amount {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .refresh-info {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
+    padding: 0 12px;
+  }
+
+  .grid.grid-cols-1.lg\:grid-cols-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 
 @media (max-width: 480px) {
+  .container {
+    padding: 0 8px;
+  }
+
   .header {
-    padding: 16px 0;
+    padding: 12px 0;
   }
 
   .header h1 {
-    font-size: 1.125rem;
+    font-size: 1rem;
   }
 
   .stats-grid {
@@ -385,18 +432,26 @@ button:hover {
   }
 
   .stat-card {
-    padding: 10px;
+    padding: 8px;
+  }
+
+  .stat-label {
+    font-size: 0.55rem;
   }
 
   .stat-value {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
   .table {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
   }
 
   .table td {
-    padding: 8px 6px;
+    padding: 6px 4px;
+  }
+
+  .table th {
+    font-size: 0.55rem;
   }
 }

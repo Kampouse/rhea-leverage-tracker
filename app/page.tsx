@@ -28,17 +28,17 @@ export default async function Home() {
       {/* Header */}
       <header className="header">
         <div className="container">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img src="/logo.svg" alt="Rhea Logo" className="h-12 w-12" />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <img src="/logo.svg" alt="Rhea Logo" className="h-8 w-8 md:h-12 md:w-12" />
               <div>
-                <h1>Rhea Leverage Tracker</h1>
-                <p className="header-subtitle">Real-time margin position tracking on NEAR</p>
+                <h1 className="text-lg md:text-2xl">Rhea Leverage Tracker</h1>
+                <p className="header-subtitle text-xs md:text-sm">Real-time margin position tracking on NEAR</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cream/10 bg-[#16161b]">
-              <span className="text-sm text-taupe">Powered by</span>
-              <span className="font-semibold text-lime">Rhea Finance</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-cream/10 bg-[#16161b] self-start md:self-auto">
+              <span className="text-xs md:text-sm text-taupe">Powered by</span>
+              <span className="text-xs md:text-sm font-semibold text-lime">Rhea Finance</span>
             </div>
           </div>
         </div>
