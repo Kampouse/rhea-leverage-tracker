@@ -49,19 +49,36 @@ async function fetchPrices() {
   return priceCache;
 }
 
-// Fetch trading history for a specific address
+// Fetch trading history for a specific address (with pagination)
 async function fetchTradingHistory(address: string): Promise<any[]> {
   try {
-    const res = await fetch(
-      `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=100&order_column=close_timestamp&order_by=DESC&tokens=`,
-      { cache: 'no-store' }
-    );
-    const data = await res.json();
+    const allRecords: any[] = [];
+    let pageNum = 0;
+    const pageSize = 100; // API ignores this, returns max 10 per page
+    let hasMore = true;
     
-    if (data.code === 0 && data.data?.position_records) {
-      return data.data.position_records;
+    // Fetch all pages until we get less than 10 records
+    while (hasMore) {
+      const res = await fetch(
+        `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=${pageNum}&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      
+      if (data.code === 0 && data.data?.position_records) {
+        const records = data.data.position_records;
+        allRecords.push(...records);
+        
+        // API returns max 10 records per page
+        // If we got less than 10, we've reached the end
+        hasMore = records.length === 10 && allRecords.length < data.data.total;
+        pageNum++;
+      } else {
+        hasMore = false;
+      }
     }
-    return [];
+    
+    return allRecords;
   } catch (e) {
     console.error(`Failed to fetch history for ${address}:`, e);
     return [];
