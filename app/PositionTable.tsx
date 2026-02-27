@@ -193,6 +193,16 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
                   <span className="text-cream/70">{pos.positionToken}</span>
                 </td>
                 <td className="text-right">
+                  <span className="text-xs text-taupe">
+                    {pos.entryPrice ? `$${pos.entryPrice.toFixed(2)}` : '-'}
+                  </span>
+                </td>
+                <td className="text-right">
+                  <span className="text-xs text-cream">
+                    ${pos.currentPrice.toFixed(2)}
+                  </span>
+                </td>
+                <td className="text-right">
                   <span className={`pnl ${pos.pnl >= 0 ? 'positive' : 'negative'}`}>
                     {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
                   </span>
