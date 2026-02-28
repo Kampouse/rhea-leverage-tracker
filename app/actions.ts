@@ -6,23 +6,18 @@ const FASTNEAR_RPC = 'https://rpc.fastnear.com';
 const BURROW = 'contract.main.burrow.near';
 const RHEA_API = 'https://api.rhea.finance/v3';
 
-// Token metadata
-const TOKENS: Record<string, { decimals: number; symbol: string }> = {
-  'wrap.near': { decimals: 24, symbol: 'wNEAR' },
-  'nbtc.bridge.near': { decimals: 8, symbol: 'nBTC' },
-  'zec.omft.near': { decimals: 8, symbol: 'ZEC' },
-  'usdt.tether-token.near': { decimals: 6, symbol: 'USDT' },
-  'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near': { decimals: 6, symbol: 'USDC' },
-};
+// Token metadata cache (fetched from contracts)
+interface TokenMeta {
+  baseDecimals: number;      // Token's native decimals (from ft_metadata)
+  extraDecimals: number;     // Burrow extra decimals (from get_asset)
+  marginDecimals: number;    // Total decimals for margin (base + extra)
+  symbol: string;
+}
+let tokenMetaCache: Record<string, TokenMeta> = {};
+let tokenMetaFetched = false;
 
-// Price cache
-let priceCache: Record<string, number> = {
-  'wrap.near': 1.10,
-  'nbtc.bridge.near': 67000,
-  'zec.omft.near': 240,
-  'usdt.tether-token.near': 1.0,
-  'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near': 1.0,
-};
+// Price cache (starts empty, fetched from API)
+let priceCache: Record<string, number> = {};
 
 // Account cache
 let accountsCache: any[] = [];
@@ -30,19 +25,106 @@ let historyCache: Record<string, any[]> = {};
 let lastFetch = 0;
 const CACHE_TTL = 60 * 1000; // 1 minute (reduced from 5)
 
-function getToken(tokenId: string) {
-  return TOKENS[tokenId] || { decimals: 24, symbol: tokenId.slice(0, 10) };
+// Fetch token metadata from Burrow contract and token contracts
+async function fetchTokenMetadata(connection: any): Promise<void> {
+  if (tokenMetaFetched) return;
+  
+  try {
+    const account = await connection.account(BURROW);
+    
+    // Get registered tokens from margin config
+    const config = await account.viewFunction({
+      contractId: BURROW,
+      methodName: 'get_margin_config',
+      args: {},
+    });
+    
+    const tokenIds = Object.keys(config.registered_tokens || {});
+    
+    // Fetch metadata for each token
+    for (const tokenId of tokenIds) {
+      try {
+        // Get extra decimals from Burrow
+        const asset = await account.viewFunction({
+          contractId: BURROW,
+          methodName: 'get_asset',
+          args: { token_id: tokenId },
+        });
+        const extraDecimals = asset.config?.extra_decimals || 0;
+        
+        // Get base decimals from token contract
+        let baseDecimals = 18; // default
+        let symbol = tokenId.slice(0, 10);
+        
+        try {
+          const tokenAccount = await connection.account(tokenId);
+          const metadata = await tokenAccount.viewFunction({
+            contractId: tokenId,
+            methodName: 'ft_metadata',
+            args: {},
+          });
+          baseDecimals = metadata.decimals || 18;
+          symbol = metadata.symbol || symbol;
+        } catch {
+          // Token contract might not exist or not have ft_metadata
+        }
+        
+        tokenMetaCache[tokenId] = {
+          baseDecimals,
+          extraDecimals,
+          marginDecimals: baseDecimals + extraDecimals,
+          symbol,
+        };
+      } catch (e) {
+        console.error(`Failed to fetch metadata for ${tokenId}:`, e);
+      }
+    }
+    
+    tokenMetaFetched = true;
+  } catch (e) {
+    console.error('Failed to fetch token metadata:', e);
+  }
+}
+
+function getToken(tokenId: string): TokenMeta {
+  return tokenMetaCache[tokenId] || { 
+    baseDecimals: 18, 
+    extraDecimals: 0, 
+    marginDecimals: 18, 
+    symbol: tokenId.slice(0, 10) 
+  };
 }
 
 async function fetchPrices() {
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=near,bitcoin,zcash&vs_currencies=usd', {
+    const res = await fetch('https://1click.chaindefuser.com/v0/tokens', {
       cache: 'no-store'
     });
-    const data = await res.json();
-    if (data.near?.usd) priceCache['wrap.near'] = data.near.usd;
-    if (data.bitcoin?.usd) priceCache['nbtc.bridge.near'] = data.bitcoin.usd;
-    if (data.zcash?.usd) priceCache['zec.omft.near'] = data.zcash.usd;
+    const tokens = await res.json();
+    
+    // Build price cache from all tokens
+    for (const token of tokens) {
+      // Map assetId to our token IDs (remove "nep141:" prefix if present)
+      const tokenId = token.assetId.replace(/^nep141:/, '');
+      if (token.price) {
+        priceCache[tokenId] = token.price;
+        
+        // Also map omft.near tokens to factory.bridge.near format for backward compatibility
+        if (tokenId.includes('.omft.near')) {
+          // Example: eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near
+          //      -> 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near
+          //      -> a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near (without 0x)
+          const match = tokenId.match(/^(?:eth-)?(0x[a-f0-9]+)\.omft\.near$/i);
+          if (match) {
+            const address = match[1];
+            // Map with 0x prefix
+            priceCache[`${address}.factory.bridge.near`] = token.price;
+            // Map without 0x prefix (some contracts use this format)
+            priceCache[`${address.substring(2)}.factory.bridge.near`] = token.price;
+          }
+        }
+      }
+    }
   } catch (e) {
     console.error('Failed to fetch prices:', e);
   }
@@ -142,13 +224,9 @@ export async function forceRefresh() {
   'use server';
   lastFetch = 0; // Clear cache timestamp
   accountsCache = []; // Clear cached data
-  priceCache = { // Reset to defaults
-    'wrap.near': 1.10,
-    'nbtc.bridge.near': 67000,
-    'zec.omft.near': 240,
-    'usdt.tether-token.near': 1.0,
-    'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near': 1.0,
-  };
+  priceCache = {}; // Reset price cache
+  tokenMetaCache = {}; // Reset token metadata cache
+  tokenMetaFetched = false;
   await fetchPrices(); // Fetch fresh prices
   return { success: true, timestamp: Date.now() };
 }
@@ -165,6 +243,9 @@ async function fetchMarginAccounts() {
     nodeUrl: FASTNEAR_RPC,
     keyStore: new keyStores.InMemoryKeyStore(),
   });
+
+  // Fetch token metadata first
+  await fetchTokenMetadata(connection);
 
   const account = await connection.account(BURROW);
   
@@ -254,28 +335,21 @@ function calculatePnL(
       const collateralToken = collateralInfo.token_id || 'unknown';
       const borrowedToken = borrowedInfo.token_id || 'unknown';
       
-      // STRICT filter: Only include positions where BOTH collateral and borrowed tokens are known
-      const KNOWN_TOKENS = ['wrap.near', 'nbtc.bridge.near', 'zec.omft.near', 'usdt.tether-token.near', 'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near'];
-
-      if (!KNOWN_TOKENS.includes(collateralToken) || !KNOWN_TOKENS.includes(borrowedToken)) {
+      // Only include positions where we have token metadata
+      const collateralMeta = getToken(collateralToken);
+      const borrowedMeta = getToken(borrowedToken);
+      const positionMeta = getToken(positionToken);
+      
+      if (!tokenMetaCache[collateralToken] || !tokenMetaCache[borrowedToken]) {
         continue;
       }
       
-      const getTokenDecimals = (tokenId: string) => {
-        const decimals: Record<string, number> = {
-          'wrap.near': 24,
-          'nbtc.bridge.near': 24,
-          'zec.omft.near': 24,  // Fixed: ZEC uses 24 decimals in margin positions
-          'usdt.tether-token.near': 18,
-          'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near': 18, // USDC
-        };
-        return decimals[tokenId] || 18;
-      };
-      
+      // Use dynamic decimals from token metadata
+      // Collateral is always in 18 decimals (USDT accounting)
       const COLLATERAL_DECIMALS = 18;
       const collateralAmount = Number(collateralInfo.balance || 0) / Math.pow(10, COLLATERAL_DECIMALS);
-      const borrowedAmount = Number(borrowedInfo.balance || 0) / Math.pow(10, getTokenDecimals(borrowedToken));
-      const positionAmount = Number(p.token_p_amount || 0) / Math.pow(10, getTokenDecimals(positionToken));
+      const borrowedAmount = Number(borrowedInfo.balance || 0) / Math.pow(10, borrowedMeta.marginDecimals);
+      const positionAmount = Number(p.token_p_amount || 0) / Math.pow(10, positionMeta.marginDecimals);
       
       const collateralPrice = prices[collateralToken] || 1;
       const borrowedPrice = prices[borrowedToken] || 1;
