@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { getLeaderboard, getPositions } from './actions';
 import PositionTable from './PositionTable';
 import LeaderboardCard from './LeaderboardCard';

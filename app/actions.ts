@@ -96,10 +96,31 @@ function getToken(tokenId: string): TokenMeta {
 }
 
 async function fetchPrices() {
+  // Hardcoded fallback prices (updated Feb 28, 2026)
+  const FALLBACK_PRICES: Record<string, number> = {
+    'wrap.near': 1.05,
+    'usdt.tether-token.near': 1.0,
+    'zec.omft.near': 207.0,
+    'btc.omft.near': 85000.0,
+    'eth.omft.near': 2200.0,
+    'sol.omft.near': 140.0,
+  };
+  
   try {
     const res = await fetch('https://1click.chaindefuser.com/v0/tokens', {
-      cache: 'no-store'
+      cache: 'no-store',
+      headers: {
+        'Accept': 'application/json',
+      },
     });
+    
+    if (!res.ok) {
+      console.error('Price API error:', res.status, res.statusText);
+      // Use fallback prices
+      priceCache = { ...FALLBACK_PRICES };
+      return priceCache;
+    }
+    
     const tokens = await res.json();
     
     // Build price cache from all tokens
@@ -111,52 +132,51 @@ async function fetchPrices() {
         
         // Also map omft.near tokens to factory.bridge.near format for backward compatibility
         if (tokenId.includes('.omft.near')) {
-          // Example: eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near
-          //      -> 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near
-          //      -> a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near (without 0x)
           const match = tokenId.match(/^(?:eth-)?(0x[a-f0-9]+)\.omft\.near$/i);
           if (match) {
             const address = match[1];
-            // Map with 0x prefix
             priceCache[`${address}.factory.bridge.near`] = token.price;
-            // Map without 0x prefix (some contracts use this format)
             priceCache[`${address.substring(2)}.factory.bridge.near`] = token.price;
           }
         }
       }
     }
+    
+    console.log('Fetched prices for', Object.keys(priceCache).length, 'tokens');
   } catch (e) {
     console.error('Failed to fetch prices:', e);
+    // Use fallback prices
+    priceCache = { ...FALLBACK_PRICES };
   }
   return priceCache;
 }
 
-// Fetch trading history for a specific address (with pagination)
+// Fetch trading history for a specific address (limited to first page for edge runtime)
 async function fetchTradingHistory(address: string): Promise<any[]> {
   try {
-    const allRecords: any[] = [];
-    let pageNum = 0;
     const pageSize = 100;
-    let hasMore = true;
-    
-    while (hasMore) {
-      const res = await fetch(
-        `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=${pageNum}&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`,
-        { cache: 'no-store' }
-      );
-      const data = await res.json();
-      
-      if (data.code === 0 && data.data?.position_records) {
-        const records = data.data.position_records;
-        allRecords.push(...records);
-        hasMore = records.length === 10 && allRecords.length < data.data.total;
-        pageNum++;
-      } else {
-        hasMore = false;
-      }
+    const url = `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`;
+
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      console.error(`Rhea API error: ${res.status} ${res.statusText}`);
+      return [];
     }
-    
-    return allRecords;
+
+    const data = await res.json();
+
+    if (data.code === 0 && data.data?.position_records) {
+      console.log(`Fetched ${data.data.position_records.length} closed positions for ${address}`);
+      return data.data.position_records;
+    }
+
+    return [];
   } catch (e) {
     console.error(`Failed to fetch history for ${address}:`, e);
     return [];
@@ -363,23 +383,27 @@ function calculatePnL(
       const isShort = positionToken === collateralToken;
       const type = isShort ? 'Short' : 'Long';
 
-      // Get entry price from API data (if available)
-      const fullPosId = `${acc.account_id}_${posId}`;
-      const entryInfo = entryData[fullPosId] || entryData[posId];
-      const entryPrice = entryInfo?.entryPrice;
+      // Calculate entry price: borrowed_value / position_amount
+      // This is the effective entry price based on what was borrowed to acquire the position
+      let entryPrice: number | undefined;
+      
+      if (positionAmount > 0 && borrowedValue > 0) {
+        entryPrice = borrowedValue / positionAmount;
+      }
 
-      // Calculate PnL using actual entry price (if available)
+      // Calculate PnL using correct formula
+      // SHORT: PnL = position_amount * (entry - current) / entry
+      // LONG: PnL = position_amount * (current - entry) / entry
       let pnl: number;
       let pnlPercent: number;
 
-      if (entryPrice && positionAmount > 0) {
-        // Use actual entry price from API
+      if (entryPrice && entryPrice > 0 && positionAmount > 0) {
         if (isShort) {
-          // SHORT: P&L = (Entry Price - Current Price) × Amount
-          pnl = (entryPrice - positionPrice) * positionAmount;
+          // SHORT: profit when price goes down
+          pnl = positionAmount * (entryPrice - positionPrice) / entryPrice;
         } else {
-          // LONG: P&L = (Current Price - Entry Price) × Amount
-          pnl = (positionPrice - entryPrice) * positionAmount;
+          // LONG: profit when price goes up
+          pnl = positionAmount * (positionPrice - entryPrice) / entryPrice;
         }
       } else {
         // Fallback: Position Value - Borrowed Value (less accurate)
@@ -432,26 +456,72 @@ export async function getUserStats(address: string): Promise<UserStats> {
   
   // Fetch trading history
   const closedPositions = await fetchTradingHistory(address);
-  
-  // Calculate realized PnL from closed positions (use Rhea's calculated value)
+
+  // Calculate realized PnL from closed positions using correct formula
+  // API returns inflated values due to margin additions being counted as profit
   let realizedPnL = 0;
   let totalVolume = 0;
-  
+
   for (const pos of closedPositions) {
-    const pnl = parseFloat(pos.pnl || '0');
-    realizedPnL += pnl;
-    
+    // Calculate correct PnL
+    const entryPrice = parseFloat(pos.entry_price || '0');
+    const closePrice = parseFloat(pos.price || '0');
+    const trend = pos.trend || 'long';
+    const isShort = trend === 'short';
+
+    // Position amount - need to determine decimals based on token
+    const tokenP = pos.token_p || '';
+    const positionRaw = parseFloat(pos.amount_p || '0');
+    // USDT: 18 decimals, NEAR: 24 decimals
+    const positionDecimals = tokenP.includes('wrap.near') ? 24 : 18;
+    const positionAmount = positionRaw / Math.pow(10, positionDecimals);
+
+    // Calculate correct PnL
+    let correctPnl = 0;
+    if (entryPrice > 0 && positionAmount > 0) {
+      if (isShort) {
+        correctPnl = positionAmount * (entryPrice - closePrice) / entryPrice;
+      } else {
+        correctPnl = positionAmount * (closePrice - entryPrice) / entryPrice;
+      }
+    }
+
+    // Overwrite API's inflated pnl with correct value
+    pos.pnl = correctPnl;
+
+    realizedPnL += correctPnl;
+
     // Calculate volume (collateral amount)
     const collateral = parseFloat(pos.amount_c || '0') / 1e18;
     totalVolume += collateral;
   }
-  
+
   // Add active position collateral to volume
   totalVolume += activePositions.reduce((sum, p) => sum + p.collateralValue, 0);
-  
+
   const totalTrades = closedPositions.length + activePositions.length;
-  const winningTrades = closedPositions.filter(p => parseFloat(p.pnl || '0') > 0).length + 
-                         activePositions.filter(p => p.pnl > 0).length;
+
+  // Recalculate winning trades using correct PnL
+  let winningClosed = 0;
+  for (const pos of closedPositions) {
+    const entryPrice = parseFloat(pos.entry_price || '0');
+    const closePrice = parseFloat(pos.price || '0');
+    const trend = pos.trend || 'long';
+    const isShort = trend === 'short';
+    const tokenP = pos.token_p || '';
+    const positionRaw = parseFloat(pos.amount_p || '0');
+    const positionDecimals = tokenP.includes('wrap.near') ? 24 : 18;
+    const positionAmount = positionRaw / Math.pow(10, positionDecimals);
+
+    if (entryPrice > 0 && positionAmount > 0) {
+      let pnl = isShort
+        ? positionAmount * (entryPrice - closePrice) / entryPrice
+        : positionAmount * (closePrice - entryPrice) / entryPrice;
+      if (pnl > 0) winningClosed++;
+    }
+  }
+
+  const winningTrades = winningClosed + activePositions.filter(p => p.pnl > 0).length;
   const losingTrades = totalTrades - winningTrades;
   const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
   
