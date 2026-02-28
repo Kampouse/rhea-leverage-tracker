@@ -9,10 +9,18 @@
     "lint": "next lint",
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:deploy": "npm run pages:build && wrangler pages deploy",
-    "pages:dev": "npx @cloudflare/next-on-pages --watch"
+    "pages:dev": "npx @cloudflare/next-on-pages --watch",
+    "db:generate": "drizzle-kit generate --config=drizzle.local.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=drizzle.local.config.ts",
+    "db:push": "drizzle-kit push --config=drizzle.local.config.ts",
+    "db:studio": "drizzle-kit studio --config=drizzle.local.config.ts",
+    "db:d1:migrate": "wrangler d1 execute rhea-tracker --file=./drizzle/0000_easy_pepper_potts.sql"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
+    "better-sqlite3": "^12.6.2",
+    "drizzle-kit": "^0.31.9",
+    "drizzle-orm": "^0.45.1",
     "near-api-js": "^5.1.0",
     "next": "^15.0.0",
     "react": "^18",
@@ -20,6 +28,7 @@
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

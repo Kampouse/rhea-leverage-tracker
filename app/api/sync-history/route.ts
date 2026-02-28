@@ -1,13 +1,9 @@
 export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
-
-// D1 types (optional - only available in Cloudflare Workers)
-type D1Database = any;
-
-interface Env {
-  DB?: D1Database;
-}
+import { createDb } from '@/db';
+import { tradeHistory, syncStatus } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -52,53 +48,68 @@ export async function POST(request: Request) {
       }
     }
 
-    // Store in D1 (if available)
-    const env = process.env as unknown as Env;
-    if (env.DB) {
+    // Get D1 binding
+    const env = process.env as any;
+    const db = env.DB ? createDb(env.DB) : null;
+
+    if (db) {
       const now = Date.now();
       
-      // Batch insert
-      const stmts = allRecords.map(record => {
-        return env.DB.prepare(
-          `INSERT OR REPLACE INTO trade_history 
-           (account_id, pos_id, token_c, token_d, token_p, trend, entry_price, exit_price, 
-            amount_c, amount_d, amount_p, pnl, open_timestamp, close_timestamp, close_type, fee, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(
-          address,
-          record.pos_id,
-          record.token_c || '',
-          record.token_d || '',
-          record.token_p || '',
-          record.trend || 'long',
-          record.entry_price || '0',
-          record.price || '0',
-          record.amount_c || '0',
-          record.amount_d || '0',
-          record.amount_p || '0',
-          parseFloat(record.pnl || '0'),
-          record.open_timestamp || 0,
-          record.close_timestamp || 0,
-          record.close_type || 'close',
-          record.fee || '0',
-          now
-        );
-      });
-      
-      await env.DB.batch(stmts);
+      // Insert records using Drizzle
+      for (const record of allRecords) {
+        await db.insert(tradeHistory)
+          .values({
+            accountId: address,
+            posId: record.pos_id,
+            tokenC: record.token_c || '',
+            tokenD: record.token_d || '',
+            tokenP: record.token_p || '',
+            trend: record.trend || 'long',
+            entryPrice: record.entry_price || '0',
+            exitPrice: record.price || '0',
+            amountC: record.amount_c || '0',
+            amountD: record.amount_d || '0',
+            amountP: record.amount_p || '0',
+            pnl: parseFloat(record.pnl || '0'),
+            openTimestamp: record.open_timestamp || 0,
+            closeTimestamp: record.close_timestamp || 0,
+            closeType: record.close_type || 'close',
+            fee: record.fee || '0',
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: tradeHistory.posId,
+            set: {
+              exitPrice: record.price || '0',
+              pnl: parseFloat(record.pnl || '0'),
+              closeTimestamp: record.close_timestamp || 0,
+              updatedAt: now,
+            },
+          });
+      }
       
       // Update sync status
-      await env.DB.prepare(
-        `INSERT OR REPLACE INTO sync_status (account_id, last_sync, total_trades)
-         VALUES (?, ?, ?)`
-      ).bind(address, now, allRecords.length).run();
+      await db.insert(syncStatus)
+        .values({
+          accountId: address,
+          lastSync: now,
+          totalTrades: allRecords.length,
+        })
+        .onConflictDoUpdate({
+          target: syncStatus.accountId,
+          set: {
+            lastSync: now,
+            totalTrades: allRecords.length,
+          },
+        });
     }
 
     return NextResponse.json({
       success: true,
       address,
       totalRecords: allRecords.length,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      dbEnabled: !!db,
     });
   } catch (error) {
     console.error('Failed to sync history:', error);
@@ -115,35 +126,37 @@ export async function GET(request: Request) {
   }
 
   try {
-    const env = process.env as unknown as Env;
+    const env = process.env as any;
+    const db = env.DB ? createDb(env.DB) : null;
     
-    if (!env.DB) {
+    if (!db) {
       return NextResponse.json({ error: 'Database not available' }, { status: 503 });
     }
 
     // Check sync status
-    const syncStatus = await env.DB.prepare(
-      'SELECT * FROM sync_status WHERE account_id = ?'
-    ).bind(address).first();
+    const status = await db.select()
+      .from(syncStatus)
+      .where(eq(syncStatus.accountId, address))
+      .limit(1);
 
-    if (!syncStatus) {
-      // Trigger sync
+    if (status.length === 0) {
       return NextResponse.json({ 
         status: 'not_synced',
         message: 'History not yet synced. POST to /api/sync-history to sync.'
       });
     }
 
-    // Fetch from D1
-    const result = await env.DB.prepare(
-      'SELECT * FROM trade_history WHERE account_id = ? ORDER BY close_timestamp DESC LIMIT 500'
-    ).bind(address).all();
+    // Fetch from database using Drizzle
+    const records = await db.select()
+      .from(tradeHistory)
+      .where(eq(tradeHistory.accountId, address))
+      .limit(500);
 
     return NextResponse.json({
       status: 'synced',
-      lastSync: syncStatus.last_sync,
-      totalTrades: syncStatus.total_trades,
-      records: result.results
+      lastSync: status[0].lastSync,
+      totalTrades: status[0].totalTrades,
+      records,
     });
   } catch (error) {
     console.error('Failed to fetch history:', error);

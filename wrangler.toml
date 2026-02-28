@@ -6,8 +6,10 @@ pages_build_output_dir = ".vercel/output/static"
 [vars]
 NODE_VERSION = "18"
 
-# D1 database (disabled for now - enable when ready)
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "rhea-tracker"
-# database_id = "create-with-wrangler-d1-create"
+# D1 database binding
+# Create database: wrangler d1 create rhea-tracker
+# Then update database_id below
+[[d1_databases]]
+binding = "DB"
+database_name = "rhea-tracker"
+database_id = "placeholder-update-after-creation"
