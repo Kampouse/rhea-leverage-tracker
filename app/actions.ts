@@ -87,7 +87,27 @@ async function fetchTokenMetadata(connection: any): Promise<void> {
 }
 
 function getToken(tokenId: string): TokenMeta {
-  return tokenMetaCache[tokenId] || { 
+  // Hardcoded symbol overrides for known tokens
+  const SYMBOL_OVERRIDES: Record<string, string> = {
+    '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1.factory.bridge.near': 'UDC',
+  };
+  
+  const cached = tokenMetaCache[tokenId];
+  if (cached) {
+    // Apply symbol override if exists
+    if (SYMBOL_OVERRIDES[tokenId.toLowerCase()]) {
+      return { ...cached, symbol: SYMBOL_OVERRIDES[tokenId.toLowerCase()] };
+    }
+    return cached;
+  }
+  
+  // Check for override on unknown tokens
+  const override = SYMBOL_OVERRIDES[tokenId.toLowerCase()];
+  if (override) {
+    return { baseDecimals: 18, extraDecimals: 0, marginDecimals: 18, symbol: override };
+  }
+  
+  return { 
     baseDecimals: 18, 
     extraDecimals: 0, 
     marginDecimals: 18, 
