@@ -13,7 +13,13 @@ export async function GET(request: Request) {
 
   try {
     const stats = await getUserStats(address);
-    return NextResponse.json(stats);
+    
+    // Cache at Cloudflare edge for 60 seconds
+    return NextResponse.json(stats, {
+      headers: {
+        'Cache-Control': 's-maxage=60, stale-while-revalidate=10',
+      },
+    });
   } catch (error) {
     console.error('Failed to get user stats:', error);
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });

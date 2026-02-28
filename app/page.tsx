@@ -5,6 +5,9 @@ import PositionTable from './PositionTable';
 import LeaderboardCard from './LeaderboardCard';
 import UserStatsPanelClient from './UserStatsPanelClient';
 
+// Revalidate every 60 seconds (Cloudflare will cache for 1 min)
+export const revalidate = 60;
+
 export default async function Home() {
   const [leaderboard, positionsData] = await Promise.all([
     getLeaderboard(),
