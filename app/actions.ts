@@ -265,7 +265,7 @@ function calculatePnL(
         const decimals: Record<string, number> = {
           'wrap.near': 24,
           'nbtc.bridge.near': 24,
-          'zec.omft.near': 18,  // Margin contract uses 18 for ZEC
+          'zec.omft.near': 24,  // Fixed: ZEC uses 24 decimals in margin positions
           'usdt.tether-token.near': 18,
           'a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near': 18, // USDC
         };
