@@ -193,17 +193,32 @@ export default function UserStatsPanel({ position, onClose, allPositions }: User
                 <div className="space-y-2">
                   {userStats.closedPositions.slice(0, 10).map((pos, i) => {
                     const pnl = parseFloat(pos.pnl || '0');
+                    const collateral = parseFloat(pos.amount_c || '0') / 1e18;
+                    const borrowed = parseFloat(pos.amount_d || '0') / 1e18;
+                    const leverage = collateral > 0 ? ((collateral + borrowed) / collateral) : 1;
+                    const entryPrice = parseFloat(pos.entry_price || '0');
+                    const exitPrice = parseFloat(pos.price || '0');
                     
                     return (
-                      <div key={i} className="flex items-center justify-between py-2 px-3 bg-cream/[0.02] rounded border border-cream/5">
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                          pos.trend === 'LONG' || pos.trend === 'long' ? 'bg-accent-green/20 text-accent-green' : 'bg-slate/20 text-slate'
-                        }`}>
-                          {pos.trend.toUpperCase()}
-                        </span>
-                        <span className={`text-xs md:text-sm font-semibold ${pnl >= 0 ? 'text-accent-green' : 'text-[#ff6b6b]'}`}>
-                          {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
-                        </span>
+                      <div key={i} className="py-2 px-3 bg-cream/[0.02] rounded border border-cream/5">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                              pos.trend === 'LONG' || pos.trend === 'long' ? 'bg-accent-green/20 text-accent-green' : 'bg-slate/20 text-slate'
+                            }`}>
+                              {pos.trend.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-taupe">{leverage.toFixed(1)}x</span>
+                            <span className="text-xs text-cream">${collateral.toFixed(0)}</span>
+                          </div>
+                          <span className={`text-xs md:text-sm font-semibold ${pnl >= 0 ? 'text-accent-green' : 'text-[#ff6b6b]'}`}>
+                            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-taupe">
+                          <span>Entry: ${entryPrice.toFixed(4)}</span>
+                          <span>Exit: ${exitPrice.toFixed(4)}</span>
+                        </div>
                       </div>
                     );
                   })}
