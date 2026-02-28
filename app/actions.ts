@@ -498,8 +498,52 @@ export async function getUserStats(address: string): Promise<UserStats> {
   const activePositions = allPositions.filter(p => p.accountId === address);
   const unrealizedPnL = activePositions.reduce((sum, p) => sum + p.pnl, 0);
   
-  // Fetch trading history
-  const closedPositions = await fetchTradingHistory(address);
+  // Try to fetch from D1 cache first, fallback to API
+  let closedPositions: any[];
+  
+  try {
+    // Check if D1 is available and has cached data
+    const cacheRes = await fetch(`${process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : ''}/api/sync-history?address=${address}`);
+    
+    if (cacheRes.ok) {
+      const cacheData = await cacheRes.json();
+      
+      if (cacheData.status === 'synced' && cacheData.records) {
+        // Use cached data
+        closedPositions = cacheData.records.map((record: any) => ({
+          pos_id: record.posId,
+          token_c: record.tokenC,
+          token_d: record.tokenD,
+          token_p: record.tokenP,
+          trend: record.trend,
+          price: record.exitPrice,
+          entry_price: record.entryPrice,
+          amount_c: record.amountC,
+          amount_d: record.amountD,
+          amount_p: record.amountP,
+          pnl: record.pnl,
+          open_timestamp: record.openTimestamp,
+          close_timestamp: record.closeTimestamp,
+          close_type: record.closeType,
+          fee: record.fee,
+        }));
+        
+        console.log(`Using cached history for ${address} (${closedPositions.length} trades)`);
+      } else {
+        // No cache, fetch from API
+        closedPositions = await fetchTradingHistory(address);
+        
+        // Trigger background sync for next time
+        fetch(`/api/sync-history?address=${address}`, { method: 'POST' }).catch(() => {});
+      }
+    } else {
+      // Cache check failed, fetch from API
+      closedPositions = await fetchTradingHistory(address);
+    }
+  } catch (e) {
+    // D1 not available, fetch from API
+    closedPositions = await fetchTradingHistory(address);
+  }
 
   // Calculate realized PnL from closed positions using correct formula
   // API returns inflated values due to margin additions being counted as profit
