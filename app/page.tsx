@@ -4,6 +4,7 @@ import { getLeaderboard, getPositions } from './actions';
 import PositionTable from './PositionTable';
 import LeaderboardCard from './LeaderboardCard';
 import UserStatsPanelClient from './UserStatsPanelClient';
+import HeaderClient from './HeaderClient';
 
 // Revalidate every 60 seconds (Cloudflare will cache for 1 min)
 export const revalidate = 60;
@@ -42,6 +43,8 @@ export default async function Home() {
               </div>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-cream/10 bg-[#16161b] self-start md:self-auto">
+              <HeaderClient />
+              <div className="w-px h-4 bg-cream/10" />
               <span className="text-xs md:text-sm text-taupe">Powered by</span>
               <span className="text-xs md:text-sm font-semibold text-lime">Rhea Finance</span>
             </div>
