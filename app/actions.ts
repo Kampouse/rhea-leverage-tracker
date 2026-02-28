@@ -493,22 +493,36 @@ export async function getUserStats(address: string): Promise<UserStats> {
     const trend = pos.trend || 'long';
     const isShort = trend === 'short';
 
-    // Position amount - need to determine decimals based on token
+    // For SHORT: use borrowed token (amount_d), for LONG: use position token (amount_p)
     const tokenP = pos.token_p || '';
-    const positionRaw = parseFloat(pos.amount_p || '0');
-    // USDT: 18 decimals, NEAR: 24 decimals
-    const positionDecimals = tokenP.includes('wrap.near') ? 24 : 18;
-    const positionAmount = positionRaw / Math.pow(10, positionDecimals);
+    const tokenD = pos.token_d || '';
+    
+    let amountRaw: number;
+    let decimals: number;
+    
+    if (isShort) {
+      // SHORT: borrowed token amount
+      amountRaw = parseFloat(pos.amount_d || '0');
+      // Determine decimals for borrowed token
+      decimals = tokenD.includes('wrap.near') ? 24 : 18;
+    } else {
+      // LONG: position token amount
+      amountRaw = parseFloat(pos.amount_p || '0');
+      // Determine decimals for position token
+      decimals = tokenP.includes('wrap.near') ? 24 : 18;
+    }
+    
+    const amount = amountRaw / Math.pow(10, decimals);
 
     // Calculate correct PnL
     let correctPnl = 0;
-    if (entryPrice > 0 && positionAmount > 0) {
+    if (entryPrice > 0 && amount > 0) {
       if (isShort) {
-        // SHORT: PnL = position_amount * (entry_price - close_price)
-        correctPnl = positionAmount * (entryPrice - closePrice);
+        // SHORT: PnL = borrowed_amount * (entry_price - close_price)
+        correctPnl = amount * (entryPrice - closePrice);
       } else {
         // LONG: PnL = position_amount * (close_price - entry_price)
-        correctPnl = positionAmount * (closePrice - entryPrice);
+        correctPnl = amount * (closePrice - entryPrice);
       }
     }
 
@@ -535,14 +549,25 @@ export async function getUserStats(address: string): Promise<UserStats> {
     const trend = pos.trend || 'long';
     const isShort = trend === 'short';
     const tokenP = pos.token_p || '';
-    const positionRaw = parseFloat(pos.amount_p || '0');
-    const positionDecimals = tokenP.includes('wrap.near') ? 24 : 18;
-    const positionAmount = positionRaw / Math.pow(10, positionDecimals);
+    const tokenD = pos.token_d || '';
+    
+    let amountRaw: number;
+    let decimals: number;
+    
+    if (isShort) {
+      amountRaw = parseFloat(pos.amount_d || '0');
+      decimals = tokenD.includes('wrap.near') ? 24 : 18;
+    } else {
+      amountRaw = parseFloat(pos.amount_p || '0');
+      decimals = tokenP.includes('wrap.near') ? 24 : 18;
+    }
+    
+    const amount = amountRaw / Math.pow(10, decimals);
 
-    if (entryPrice > 0 && positionAmount > 0) {
+    if (entryPrice > 0 && amount > 0) {
       let pnl = isShort
-        ? positionAmount * (entryPrice - closePrice)
-        : positionAmount * (closePrice - entryPrice);
+        ? amount * (entryPrice - closePrice)
+        : amount * (closePrice - entryPrice);
       if (pnl > 0) winningClosed++;
     }
   }
