@@ -193,18 +193,14 @@ export default function UserStatsPanel({ position, onClose, allPositions }: User
                 <div className="space-y-2">
                   {userStats.closedPositions.slice(0, 10).map((pos, i) => {
                     const pnl = parseFloat(pos.pnl || '0');
-                    const tokenSymbol = pos.token_p?.split('.')[0].toUpperCase() || '???';
                     
                     return (
                       <div key={i} className="flex items-center justify-between py-2 px-3 bg-cream/[0.02] rounded border border-cream/5">
-                        <div className="flex items-center gap-2 md:gap-3">
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            pos.trend === 'LONG' ? 'bg-accent-green/20 text-accent-green' : 'bg-slate/20 text-slate'
-                          }`}>
-                            {pos.trend}
-                          </span>
-                          <span className="text-xs md:text-sm text-cream">{tokenSymbol}</span>
-                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                          pos.trend === 'LONG' || pos.trend === 'long' ? 'bg-accent-green/20 text-accent-green' : 'bg-slate/20 text-slate'
+                        }`}>
+                          {pos.trend.toUpperCase()}
+                        </span>
                         <span className={`text-xs md:text-sm font-semibold ${pnl >= 0 ? 'text-accent-green' : 'text-[#ff6b6b]'}`}>
                           {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                         </span>
