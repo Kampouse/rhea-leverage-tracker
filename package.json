@@ -24,7 +24,8 @@
     "near-api-js": "^5.1.0",
     "next": "^15.0.0",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",

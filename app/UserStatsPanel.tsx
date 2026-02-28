@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Position, UserStats } from './actions';
+import PnLChart from './PnLChart';
 
 interface UserStatsPanelProps {
   position: Position;
@@ -100,6 +101,17 @@ export default function UserStatsPanel({ position, onClose, allPositions }: User
                 </div>
               </div>
             </div>
+
+            {/* P&L Chart */}
+            {userStats.closedPositions && userStats.closedPositions.length > 0 && (
+              <div className="p-4 md:p-6 border-b border-cream/10">
+                <div className="text-xs text-taupe mb-3 uppercase tracking-wide">P&L Progression</div>
+                <PnLChart 
+                  closedPositions={userStats.closedPositions} 
+                  currentPnL={userStats.unrealizedPnL}
+                />
+              </div>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-px bg-cream/10 border-b border-cream/10">
