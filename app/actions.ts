@@ -399,10 +399,12 @@ function calculatePnL(
       if (entryPrice && entryPrice > 0 && positionAmount > 0) {
         if (isShort) {
           // SHORT: profit when price goes down
-          pnl = positionAmount * (entryPrice - positionPrice) / entryPrice;
+          // PnL = position_amount * (entry_price - current_price)
+          pnl = positionAmount * (entryPrice - positionPrice);
         } else {
           // LONG: profit when price goes up
-          pnl = positionAmount * (positionPrice - entryPrice) / entryPrice;
+          // PnL = position_amount * (current_price - entry_price)
+          pnl = positionAmount * (positionPrice - entryPrice);
         }
       } else {
         // Fallback: Position Value - Borrowed Value (less accurate)
@@ -479,9 +481,11 @@ export async function getUserStats(address: string): Promise<UserStats> {
     let correctPnl = 0;
     if (entryPrice > 0 && positionAmount > 0) {
       if (isShort) {
-        correctPnl = positionAmount * (entryPrice - closePrice) / entryPrice;
+        // SHORT: PnL = position_amount * (entry_price - close_price)
+        correctPnl = positionAmount * (entryPrice - closePrice);
       } else {
-        correctPnl = positionAmount * (closePrice - entryPrice) / entryPrice;
+        // LONG: PnL = position_amount * (close_price - entry_price)
+        correctPnl = positionAmount * (closePrice - entryPrice);
       }
     }
 
@@ -514,8 +518,8 @@ export async function getUserStats(address: string): Promise<UserStats> {
 
     if (entryPrice > 0 && positionAmount > 0) {
       let pnl = isShort
-        ? positionAmount * (entryPrice - closePrice) / entryPrice
-        : positionAmount * (closePrice - entryPrice) / entryPrice;
+        ? positionAmount * (entryPrice - closePrice)
+        : positionAmount * (closePrice - entryPrice);
       if (pnl > 0) winningClosed++;
     }
   }
