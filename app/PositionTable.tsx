@@ -151,16 +151,15 @@ export default function PositionTable({ initialPositions, initialTimestamp }: Po
           </thead>
           <tbody>
             {filteredPositions.slice(0, 100).map((pos, i) => (
-              <tr key={pos.posId}>
+              <tr key={pos.posId} data-account-id={pos.accountId} className="cursor-pointer hover:bg-cream/[0.02] transition-colors">
                 <td>
                   <span className="text-taupe text-sm">{i + 1}</span>
                 </td>
                 <td>
                   <div className="flex items-center gap-2">
                     <span 
-                      className="font-medium text-cream account-id cursor-pointer hover:text-lime transition-colors"
-                      title={`${pos.accountId} (click to copy)`}
-                      onClick={() => navigator.clipboard.writeText(pos.accountId)}
+                      className="font-medium text-cream account-id hover:text-lime transition-colors"
+                      title={`${pos.accountId} (click for details)`}
                     >
                       {pos.accountId.length > 24 
                         ? `${pos.accountId.slice(0, 12)}...${pos.accountId.slice(-9)}`
