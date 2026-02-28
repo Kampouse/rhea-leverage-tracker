@@ -173,32 +173,52 @@ async function fetchPrices() {
   return priceCache;
 }
 
-// Fetch trading history for a specific address (limited to first page for edge runtime)
+// Fetch ALL trading history for a specific address (paginates through all pages)
 async function fetchTradingHistory(address: string): Promise<any[]> {
   try {
+    const allRecords: any[] = [];
+    let pageNum = 0;
     const pageSize = 100;
-    const url = `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`;
+    
+    // Fetch all pages
+    while (true) {
+      const url = `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=${pageNum}&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`;
 
-    const res = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Rhea-Leverage-Tracker/1.0',
-      },
-    });
+      const res = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Rhea-Leverage-Tracker/1.0',
+        },
+      });
 
-    if (!res.ok) {
-      console.error(`Rhea API error: ${res.status} ${res.statusText}`);
-      return [];
+      if (!res.ok) {
+        console.error(`Rhea API error: ${res.status} ${res.statusText}`);
+        break;
+      }
+
+      const data = await res.json();
+
+      if (data.code === 0 && data.data?.position_records) {
+        const records = data.data.position_records;
+        allRecords.push(...records);
+        
+        // If we got less than pageSize, we've reached the end
+        if (records.length < pageSize) break;
+        
+        pageNum++;
+        
+        // Safety limit: max 20 pages (2000 trades)
+        if (pageNum >= 20) break;
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } else {
+        break;
+      }
     }
 
-    const data = await res.json();
-
-    if (data.code === 0 && data.data?.position_records) {
-      console.log(`Fetched ${data.data.position_records.length} closed positions for ${address}`);
-      return data.data.position_records;
-    }
-
-    return [];
+    console.log(`Fetched ${allRecords.length} total closed positions for ${address}`);
+    return allRecords;
   } catch (e) {
     // Log full error for debugging
     console.error(`Failed to fetch history for ${address}:`, e instanceof Error ? e.message : String(e));

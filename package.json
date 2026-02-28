@@ -12,6 +12,7 @@
     "pages:dev": "npx @cloudflare/next-on-pages --watch"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
     "near-api-js": "^5.1.0",
     "next": "^15.0.0",
     "react": "^18",

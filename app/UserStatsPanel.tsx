@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Position, UserStats } from './actions';
 
 interface UserStatsPanelProps {
@@ -10,23 +11,17 @@ interface UserStatsPanelProps {
 }
 
 export default function UserStatsPanel({ position, onClose, allPositions }: UserStatsPanelProps) {
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await fetch(`/api/user-stats?address=${position.accountId}`);
-        const data = await res.json();
-        setUserStats(data);
-      } catch (error) {
-        console.error('Failed to fetch user stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchStats();
-  }, [position.accountId]);
+  // Use React Query for caching
+  const { data: userStats, isLoading, error } = useQuery({
+    queryKey: ['userStats', position.accountId],
+    queryFn: async (): Promise<UserStats> => {
+      const res = await fetch(`/api/user-stats?address=${position.accountId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+    staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   const formatCurrency = (value: number) => {
     if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
@@ -57,9 +52,13 @@ export default function UserStatsPanel({ position, onClose, allPositions }: User
           ×
         </button>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-taupe text-sm">Loading trader history...</div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-taupe">Failed to load stats</div>
           </div>
         ) : userStats ? (
           <div className="pb-20 md:pb-0">
