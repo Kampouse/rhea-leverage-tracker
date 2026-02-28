@@ -87,22 +87,25 @@ async function fetchTokenMetadata(connection: any): Promise<void> {
 }
 
 function getToken(tokenId: string): TokenMeta {
-  // Hardcoded symbol overrides for known tokens
+  // Hardcoded symbol overrides for known tokens (case-insensitive)
+  // Support both full token ID and hex-only formats
   const SYMBOL_OVERRIDES: Record<string, string> = {
     '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1.factory.bridge.near': 'UDC',
+    '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1': 'UDC',
   };
   
+  const tokenIdLower = tokenId.toLowerCase();
   const cached = tokenMetaCache[tokenId];
   if (cached) {
-    // Apply symbol override if exists
-    if (SYMBOL_OVERRIDES[tokenId.toLowerCase()]) {
-      return { ...cached, symbol: SYMBOL_OVERRIDES[tokenId.toLowerCase()] };
+    // Apply symbol override if exists (case-insensitive)
+    if (SYMBOL_OVERRIDES[tokenIdLower]) {
+      return { ...cached, symbol: SYMBOL_OVERRIDES[tokenIdLower] };
     }
     return cached;
   }
   
-  // Check for override on unknown tokens
-  const override = SYMBOL_OVERRIDES[tokenId.toLowerCase()];
+  // Check for override on unknown tokens (case-insensitive)
+  const override = SYMBOL_OVERRIDES[tokenIdLower];
   if (override) {
     return { baseDecimals: 18, extraDecimals: 0, marginDecimals: 18, symbol: override };
   }
