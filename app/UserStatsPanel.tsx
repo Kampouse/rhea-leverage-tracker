@@ -162,6 +162,16 @@ export default function UserStatsPanel({ position, onClose, allPositions }: User
                           <span className="text-cream">{formatCurrency(pos.collateralValue)}</span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Entry:</span>
+                          <span className="text-cream text-left">
+                            {pos.entryPrice ? `$${pos.entryPrice.toFixed(2)}` : '-'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Current:</span>
+                          <span className="text-cream">${pos.currentPrice.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Health:</span>
                           <span className={pos.health > 2 ? 'text-accent-green' : pos.health > 1.2 ? 'text-cream' : 'text-[#ff6b6b]'}>
                             {pos.health.toFixed(2)}
