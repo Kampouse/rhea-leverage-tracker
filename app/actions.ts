@@ -179,8 +179,23 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
     const allRecords: any[] = [];
     let pageNum = 0;
     const pageSize = 100;
-    
+
+    // First, get total count from API
+    const initialRes = await fetch(`${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=10&order_column=close_timestamp&order_by=DESC&tokens=`, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Rhea-Leverage-Tracker/1.0',
+      },
+    });
+
+    let totalRecords = 0;
+    if (initialRes.ok) {
+      const initialData = await initialRes.json();
+      totalRecords = initialData.data?.total || 0;
+    }
+
     // Fetch all pages
+    // Note: API returns 10 records per page regardless of page_size parameter
     while (true) {
       const url = `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=${pageNum}&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`;
 
@@ -200,18 +215,21 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
 
       if (data.code === 0 && data.data?.position_records) {
         const records = data.data.position_records;
+
+        if (records.length === 0) break; // No more records
+
         allRecords.push(...records);
-        
-        // If we got less than pageSize, we've reached the end
-        if (records.length < pageSize) break;
-        
+
+        // Check if we've fetched all records
+        if (totalRecords > 0 && allRecords.length >= totalRecords) break;
+
         pageNum++;
-        
-        // Safety limit: max 20 pages (2000 trades)
-        if (pageNum >= 20) break;
-        
+
+        // Safety limit: max 100 pages (1000 trades at 10 per page)
+        if (pageNum >= 100) break;
+
         // Small delay to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       } else {
         break;
       }
@@ -498,19 +516,25 @@ export async function getUserStats(address: string): Promise<UserStats> {
   const activePositions = allPositions.filter(p => p.accountId === address);
   const unrealizedPnL = activePositions.reduce((sum, p) => sum + p.pnl, 0);
   
-  // Try to fetch from D1 cache first, fallback to API
-  let closedPositions: any[];
+  // Try to fetch from D1 cache directly (avoid HTTP request to self)
+  let closedPositions: any[] = [];
   
   try {
-    // Check if D1 is available and has cached data
-    const cacheRes = await fetch(`${process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : ''}/api/sync-history?address=${address}`);
-    
-    if (cacheRes.ok) {
-      const cacheData = await cacheRes.json();
+    // Access D1 binding directly (works in Cloudflare Pages edge functions)
+    const env = process.env as any;
+    if (env.DB) {
+      // Dynamic import to avoid bundling issues on client
+      const { createDb } = await import('@/db');
+      const { tradeHistory } = await import('@/db/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = createDb(env.DB);
       
-      if (cacheData.status === 'synced' && cacheData.records) {
-        // Use cached data
-        closedPositions = cacheData.records.map((record: any) => ({
+      const records = await db.select()
+        .from(tradeHistory)
+        .where(eq(tradeHistory.accountId, address));
+      
+      if (records.length > 0) {
+        closedPositions = records.map((record: any) => ({
           pos_id: record.posId,
           token_c: record.tokenC,
           token_d: record.tokenD,
@@ -527,21 +551,17 @@ export async function getUserStats(address: string): Promise<UserStats> {
           close_type: record.closeType,
           fee: record.fee,
         }));
-        
-        console.log(`Using cached history for ${address} (${closedPositions.length} trades)`);
-      } else {
-        // No cache, fetch from API
-        closedPositions = await fetchTradingHistory(address);
-        
-        // Trigger background sync for next time
-        fetch(`/api/sync-history?address=${address}`, { method: 'POST' }).catch(() => {});
+        console.log(`Using D1 cached history for ${address} (${closedPositions.length} trades)`);
       }
-    } else {
-      // Cache check failed, fetch from API
+    }
+    
+    // If no D1 data, fetch from API
+    if (closedPositions.length === 0) {
       closedPositions = await fetchTradingHistory(address);
     }
   } catch (e) {
-    // D1 not available, fetch from API
+    console.error('Failed to fetch from D1:', e);
+    // Fallback to API
     closedPositions = await fetchTradingHistory(address);
   }
 
