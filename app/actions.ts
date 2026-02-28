@@ -289,32 +289,33 @@ function calculatePnL(
       const isShort = positionToken === collateralToken;
       const type = isShort ? 'Short' : 'Long';
 
-      // Simple P&L calculation
+      // Get entry price from API data (if available)
+      const fullPosId = `${acc.account_id}_${posId}`;
+      const entryInfo = entryData[fullPosId] || entryData[posId];
+      const entryPrice = entryInfo?.entryPrice;
+
+      // Calculate PnL using actual entry price (if available)
       let pnl: number;
       let pnlPercent: number;
-      
-      // PnL = Position Value - Borrowed Value
-      pnl = positionValue - borrowedValue;
-      pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
-      
-      const leverage = collateralValue > 0 ? (collateralValue + borrowedValue) / collateralValue : 0;
-      const health = borrowedValue > 0 ? collateralValue / borrowedValue : 999;
-      
-      // Calculate entry price from P&L (reverse-engineer from actual P&L)
-      // This is the most accurate method
-      let entryPrice: number | undefined;
-      
-      if (positionAmount > 0 && pnl !== 0) {
+
+      if (entryPrice && positionAmount > 0) {
+        // Use actual entry price from API
         if (isShort) {
           // SHORT: P&L = (Entry Price - Current Price) × Amount
-          // Entry Price = Current Price + (P&L / Amount)
-          entryPrice = positionPrice + (pnl / positionAmount);
+          pnl = (entryPrice - positionPrice) * positionAmount;
         } else {
           // LONG: P&L = (Current Price - Entry Price) × Amount
-          // Entry Price = Current Price - (P&L / Amount)
-          entryPrice = positionPrice - (pnl / positionAmount);
+          pnl = (positionPrice - entryPrice) * positionAmount;
         }
+      } else {
+        // Fallback: Position Value - Borrowed Value (less accurate)
+        pnl = positionValue - borrowedValue;
       }
+
+      pnlPercent = collateralValue > 0 ? (pnl / collateralValue) * 100 : 0;
+
+      const leverage = collateralValue > 0 ? (collateralValue + borrowedValue) / collateralValue : 0;
+      const health = borrowedValue > 0 ? collateralValue / borrowedValue : 999;
       
       positions.push({
         accountId: acc.account_id,
