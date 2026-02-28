@@ -108,7 +108,6 @@ async function fetchPrices() {
   
   try {
     const res = await fetch('https://1click.chaindefuser.com/v0/tokens', {
-      cache: 'no-store',
       headers: {
         'Accept': 'application/json',
       },
@@ -158,9 +157,9 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
     const url = `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=${pageSize}&order_column=close_timestamp&order_by=DESC&tokens=`;
 
     const res = await fetch(url, {
-      cache: 'no-store',
       headers: {
         'Accept': 'application/json',
+        'User-Agent': 'Rhea-Leverage-Tracker/1.0',
       },
     });
 
@@ -178,7 +177,8 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
 
     return [];
   } catch (e) {
-    console.error(`Failed to fetch history for ${address}:`, e);
+    // Log full error for debugging
+    console.error(`Failed to fetch history for ${address}:`, e instanceof Error ? e.message : String(e));
     return [];
   }
 }
@@ -187,8 +187,7 @@ async function fetchTradingHistory(address: string): Promise<any[]> {
 async function fetchOpenPositionHistory(address: string): Promise<Record<string, any>> {
   try {
     const res = await fetch(
-      `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=100&order_column=open_timestamp&order_by=DESC&tokens=`,
-      { cache: 'no-store' }
+      `${RHEA_API}/margin-trading/position/history?address=${address}&page_num=0&page_size=100&order_column=open_timestamp&order_by=DESC&tokens=`
     );
     const data = await res.json();
     
